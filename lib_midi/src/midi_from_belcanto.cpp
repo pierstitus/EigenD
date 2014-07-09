@@ -59,6 +59,9 @@ using namespace std;
 
 #define DEFAULT_CTRL_INTERVAL 10000ULL
 
+#define MIDI_CHANNEL_POLY 0
+#define MIDI_CHANNEL_CHANNEL 17
+
 // TODO:
 // 1. test unconnecting and event ending downstream
 
@@ -252,7 +255,7 @@ namespace midi
         // queue up midi data from the input wires
         void add_to_midi_buffer(const piw::data_nb_t &d);
         // get the current channel, cycles through 16 possible channels
-        unsigned get_channel();
+        unsigned get_channel(const piw::data_nb_t &id);
         // set the MIDI channel to use
         void set_midi_channel(unsigned c);
         static int __setchannel(void *r_, void *c_);
@@ -320,6 +323,8 @@ namespace midi
         bool poly_;
         // omni mode - true: send to all channels, false: poly mode
         bool omni_;
+        // channel mode  - true, send to channel specified by wire id, false: poly, false: fixed
+        bool channel_mode_;
         // monotonically increasing packet timestamp
         unsigned long long time_;
 
@@ -407,7 +412,7 @@ namespace
     void belcanto_note_wire_t::event_start(unsigned seq, const piw::data_nb_t &id, const piw::xevent_data_buffer_t &b)
     {
 #if MIDI_FROM_BELCANTO_DEBUG>0
-        pic::logmsg() << "belcanto_note_wire_t::event_start";
+        pic::logmsg() << "belcanto_note_wire_t::event_start id=" << id;
 #endif // MIDI_FROM_BELCANTO_DEBUG>0
 
         iterator_ = b.iterator();
@@ -419,7 +424,7 @@ namespace
         unsigned long long t = id.time();
         last_from_ = t;
         id_ = id;
-        channel_ = root_->get_channel();
+        channel_ = root_->get_channel(id_);
 
         piw::data_nb_t dk;
 
@@ -672,7 +677,7 @@ namespace midi
         root_t(0), piw::event_data_source_real_t(piw::pathnull(0)),
         upstream_clk_(0), downstream_clk_(0), output_buffer_(1,4*PIW_DATAQUEUE_SIZE_NORM),
         clk_state_(CLKSTATE_IDLE), clk_domain_(clk_domain),
-        channel_(1), poly_(false), omni_(false), time_(0ULL),
+        channel_(1), poly_(false), omni_(false), channel_mode_(false), time_(0ULL),
         resend_current_(midi::resend_current_t::method(this,&midi_from_belcanto_t::impl_t::dummy)),
         ctrl_interval_(DEFAULT_CTRL_INTERVAL), send_notes_(true), send_pitchbend_(true), send_hires_velocity_(false),
         pitchbend_semitones_up_(1), pitchbend_semitones_down_(1)
@@ -806,9 +811,23 @@ namespace midi
         output_buffer_.add_value(1, d);
     }
 
-    unsigned midi_from_belcanto_t::impl_t::get_channel()
+    unsigned midi_from_belcanto_t::impl_t::get_channel( const piw::data_nb_t &id)
     {
-        if(poly_)
+		if(channel_mode_)
+		{
+
+			// 4.1.3:34=2   3.1:34=1 2:34.1=0 1=0
+			unsigned pos=id.as_pathlen();
+        	//pic::logmsg() << "midi_from_belcanto_t::impl_t::get_channel " << id << " cp " << pos << " pl " << id.as_pathlen();
+
+			if(pos<2) return 1;
+
+			unsigned raw_channel = id.as_path()[pos-2] - 1;
+			unsigned channel= (raw_channel % (channel_list_.num_channels())) + channel_list_.min();
+        	//pic::logmsg() << "midi_from_belcanto_t::impl_t::get_channel " << id << " channel " << channel;
+			return channel;
+		}
+        else if(poly_)
         {
             return channel_list_.get();
         }
@@ -829,15 +848,23 @@ namespace midi
     {
         midi_from_belcanto_t::impl_t *r = (midi_from_belcanto_t::impl_t *)r_;
         unsigned c = *(unsigned *)c_;
-        if(c==0)
+        if(c==MIDI_CHANNEL_POLY)
         {
             r->channel_ = 0;
             r->poly_ = true;
+			r->channel_mode_ = false;
+        }
+        else if(c==MIDI_CHANNEL_CHANNEL)
+        {
+            r->channel_ = 0;
+            r->poly_ = false;
+			r->channel_mode_ = true;
         }
         else
         {
             r->channel_ = c;
             r->poly_ = false;
+			r->channel_mode_ = false;
         }
         return 0;
     }
@@ -985,7 +1012,7 @@ namespace midi
             time_ = std::max(time_+1,i->time_);
             bool global = false;
             unsigned channel = 0;
-            if(!poly_)
+            if(!poly_ && !channel_mode_)
             {
                 switch(i->scope_)
                 {
@@ -1011,6 +1038,36 @@ namespace midi
                         break;
                 }
             }
+			else if(channel_mode_)
+			{
+                switch(i->scope_)
+                {
+                    case CHANNEL_SCOPE:
+                        if(i->configured_channel_)
+                        {
+                            global = false;
+                            channel = i->configured_channel_;
+                            break;
+                        }
+                    default:
+						global = false;
+						// 2:.= (1)= 0 2.2:.(2) =1
+						unsigned pos=i->id_.as_pathlen();
+						if(pos>0)
+						{
+							unsigned raw_channel = i->id_.as_path()[pos-1] - 1;
+							channel = (raw_channel % (channel_list_.num_channels())) + channel_list_.min();
+							//pic::logmsg() << "set midi " << i->id_ << " channel " << channel;
+						}
+						else
+						{
+							channel=1;
+							//pic::logmsg() << "set midi - no path" << i->id_ << " channel " << channel;
+						}
+
+                        break;
+                }
+			}
             else
             {
                 switch(i->scope_)

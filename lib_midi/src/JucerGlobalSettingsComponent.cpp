@@ -55,7 +55,8 @@ void GlobalSettingsComponent::updateComponent(midi::mapping_delegate_t *mapping_
     midi_hires_velocity->setToggleState(settings.send_hires_velocity_, false);
 
     unsigned midi_channel = settings.midi_channel_;
-    if(0==midi_channel) { midi_channel = 17; }
+    if(0==settings.midi_channel_) { midi_channel = 17; }
+    if(17==settings.midi_channel_) { midi_channel = 18; }
 
     active_channel->setSelectedId(midi_channel);
     min_channel->setSelectedId(settings.minimum_midi_channel_);
@@ -82,12 +83,17 @@ void GlobalSettingsComponent::handleMessage(const Message &)
         {
             midi_channel = 0;
         }
+        else if(18==midi_channel)
+        {
+            midi_channel = 17;
+        }
     }
     bool send_notes = midi_notes->getToggleState();
     bool send_pitchbend = midi_pitchbend->getToggleState();
     bool send_hires_velocity = midi_hires_velocity->getToggleState();
     unsigned pb_up = pitchbend_up->getValue();
     unsigned pb_down = pitchbend_down->getValue();
+	// TODO, add to UI ?
 
     mapping_delegate_->change_settings(midi::global_settings_t(midi_channel, min_channel->getSelectedId(), max_channel->getSelectedId(), data_decimation->getValue(), send_notes, send_pitchbend, send_hires_velocity, pb_up, pb_down));
 }
@@ -170,6 +176,7 @@ GlobalSettingsComponent::GlobalSettingsComponent ()
     active_channel->addItem ("15", 15);
     active_channel->addItem ("16", 16);
     active_channel->addItem ("Poly", 17);
+    active_channel->addItem ("Channel", 18);
     active_channel->addListener (this);
 
     addAndMakeVisible (min_channel_label = new Label ("min channel label",
