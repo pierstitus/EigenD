@@ -164,6 +164,7 @@ namespace host
             void set_velocity_samples(unsigned);
             void set_velocity_curve(float);
             void set_velocity_scale(float);
+            void map_channel_to_midi_channel(unsigned,unsigned);
             void set_pitchbend_up(float semis);
             void set_pitchbend_down(float semis);
 

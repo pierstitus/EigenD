@@ -88,6 +88,7 @@ class plugin_instance[host::plugin_instance_t] /gc/
     void set_velocity_samples(unsigned)
     void set_velocity_curve(float)
     void set_velocity_scale(float)
+    void map_channel_to_midi_channel(unsigned,unsigned)
 
     bool open(const plugin_description &)
     void close()

@@ -1948,6 +1948,11 @@ void host::plugin_instance_t::set_velocity_curve(float n)
     impl_->midi_from_belcanto_->set_velocity_curve(n);
 }
 
+void host::plugin_instance_t::map_channel_to_midi_channel(unsigned channel,unsigned midi_channel)
+{
+    impl_->midi_from_belcanto_->map_channel_to_midi_channel(channel,midi_channel);
+}
+
 void host::plugin_instance_t::set_velocity_scale(float n)
 {
     impl_->midi_from_belcanto_->set_velocity_scale(n);

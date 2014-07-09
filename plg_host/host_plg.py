@@ -419,6 +419,8 @@ class Agent(agent.Agent):
         self.add_verb2(11,'set([],~a,role(None,[matches([midi,bank])]),role(to,[numeric]))',create_action=self.__set_bank_change)
         self.add_verb2(12,'set([],~a,role(None,[mass([midi,controller])]),role(to,[numeric]))',create_action=self.__set_midi_control)
 
+        self.add_verb2(13,'map([],~a,role(None,[matches([channel])]),role(from,[numeric]),role(to,[numeric]))',callback=self.__map_channel_to_midi_channel)
+
         self.set_ordinal(ordinal)
 
     def close_server(self):
@@ -505,6 +507,21 @@ class Agent(agent.Agent):
 
     def __set_velocity_scale(self,scale):
         self.host.set_velocity_scale(scale)
+        return True
+
+    def __map_channel_to_midi_channel(self,a,prop,channel,midi_channel):
+        print "map midi channel a ", a, " prop ", prop ," c ", channel," m ", midi_channel
+        from_str = action.abstract_string(channel)
+        from_val = int(from_str)
+        if from_val < 0 :
+            return errors.invalid_thing(from_str, 'map')
+
+        to_str = action.abstract_string(midi_channel)
+        to_val = int(to_str)
+        if to_val < 1 or to_val > 16:
+            return errors.invalid_thing(to_str, 'map')
+
+        self.host.map_channel_to_midi_channel(from_val,to_val)
         return True
 
     def __open(self,arg,id):

@@ -61,6 +61,7 @@ using namespace std;
 
 #define MIDI_CHANNEL_POLY 0
 #define MIDI_CHANNEL_CHANNEL 17
+#define CHANNEL_MAP_INIT_SIZE 50
 
 // TODO:
 // 1. test unconnecting and event ending downstream
@@ -279,6 +280,7 @@ namespace midi
         void set_omni(bool b);
         static int __set_omni(void *r_, void *b_);
 
+
         // check whether a status message has to be discarted
         bool check_time_status(unsigned channel, unsigned status, unsigned long long t);
 
@@ -325,8 +327,12 @@ namespace midi
         bool omni_;
         // channel mode  - true, send to channel specified by wire id, false: poly, false: fixed
         bool channel_mode_;
+		// mapping from wire channel to midi channel
+        std::vector<unsigned> channel_map_;
+
         // monotonically increasing packet timestamp
         unsigned long long time_;
+
 
         midi::resend_current_t resend_current_;
 
@@ -677,7 +683,8 @@ namespace midi
         root_t(0), piw::event_data_source_real_t(piw::pathnull(0)),
         upstream_clk_(0), downstream_clk_(0), output_buffer_(1,4*PIW_DATAQUEUE_SIZE_NORM),
         clk_state_(CLKSTATE_IDLE), clk_domain_(clk_domain),
-        channel_(1), poly_(false), omni_(false), channel_mode_(false), time_(0ULL),
+        channel_(1), poly_(false), omni_(false), channel_mode_(false), channel_map_(CHANNEL_MAP_INIT_SIZE),
+		time_(0ULL),
         resend_current_(midi::resend_current_t::method(this,&midi_from_belcanto_t::impl_t::dummy)),
         ctrl_interval_(DEFAULT_CTRL_INTERVAL), send_notes_(true), send_pitchbend_(true), send_hires_velocity_(false),
         pitchbend_semitones_up_(1), pitchbend_semitones_down_(1)
@@ -822,8 +829,12 @@ namespace midi
 
 			if(pos<2) return 1;
 
-			unsigned raw_channel = id.as_path()[pos-2] - 1;
-			unsigned channel= (raw_channel % (channel_list_.num_channels())) + channel_list_.min();
+			unsigned raw_channel = id.as_path()[pos-2];
+			unsigned channel= raw_channel > (channel_map_.size() - 1) ? 0 : channel_map_[raw_channel];
+			if (channel == 0 ) 
+			{
+				channel=((raw_channel - 1 ) % (channel_list_.num_channels())) + channel_list_.min();
+			}
         	//pic::logmsg() << "midi_from_belcanto_t::impl_t::get_channel " << id << " channel " << channel;
 			return channel;
 		}
@@ -1055,8 +1066,12 @@ namespace midi
 						unsigned pos=i->id_.as_pathlen();
 						if(pos>0)
 						{
-							unsigned raw_channel = i->id_.as_path()[pos-1] - 1;
-							channel = (raw_channel % (channel_list_.num_channels())) + channel_list_.min();
+							unsigned raw_channel = i->id_.as_path()[pos-1];
+							channel= raw_channel > (channel_map_.size() - 1) ? 0 : channel_map_[raw_channel];
+							if (channel == 0 ) 
+							{
+								channel=((raw_channel - 1 )% (channel_list_.num_channels())) + channel_list_.min();
+							}
 							//pic::logmsg() << "set midi " << i->id_ << " channel " << channel;
 						}
 						else
@@ -1475,6 +1490,23 @@ namespace midi
         return i->channel_list_.get_channel(d);
     }
 
+    static int __map_channel_to_midi_channel(void *r_, void *p_)
+    {
+		static const unsigned RESIZE_AMOUNT=10;
+        midi_from_belcanto_t::impl_t *r = (midi_from_belcanto_t::impl_t *)r_;
+        std::pair<unsigned,unsigned> *p = (std::pair<unsigned,unsigned> *)p_;
+		unsigned chan = p->first;
+		unsigned midi_chan = p->second;
+		
+		if(r->channel_map_.size() < chan) r->channel_map_.resize(chan+RESIZE_AMOUNT);
+		r->channel_map_[chan]=midi_chan;
+
+		delete p;
+
+        pic::logmsg() << "__map_channel_to_midi_channel " << chan << " to " << midi_chan;
+
+        return 0;
+	}
 
     // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // midi from belcanto interface class
@@ -1510,6 +1542,7 @@ namespace midi
     void midi_from_belcanto_t::set_velocity_samples(unsigned n) { impl_->velocity_config_.set_samples(n); }
     void midi_from_belcanto_t::set_velocity_curve(float n) { impl_->velocity_config_.set_curve(n); }
     void midi_from_belcanto_t::set_velocity_scale(float n) { impl_->velocity_config_.set_scale(n); }
+    void midi_from_belcanto_t::map_channel_to_midi_channel(unsigned channel,unsigned midi_channel){ piw::tsd_fastcall(__map_channel_to_midi_channel,impl_,new std::pair<unsigned,unsigned>(channel,midi_channel)); }
     piw::clocksink_t *midi_from_belcanto_t::clocksink() { return impl_; }
 
 } // namespace midi

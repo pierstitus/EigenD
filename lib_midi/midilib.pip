@@ -122,6 +122,7 @@ class midi_from_belcanto[midi::midi_from_belcanto_t]
     void set_velocity_samples(unsigned)
     void set_velocity_curve(float)
     void set_velocity_scale(float)
+	void map_channel_to_midi_channel(unsigned,unsigned)
 }
 
 class midi_output_port[midi::midi_output_port_t]

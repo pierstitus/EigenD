@@ -66,6 +66,7 @@ namespace midi
         void set_velocity_samples(unsigned);
         void set_velocity_curve(float);
         void set_velocity_scale(float);
+		void map_channel_to_midi_channel(unsigned,unsigned);
         piw::clocksink_t *clocksink();
 
         class impl_t;
