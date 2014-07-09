@@ -376,6 +376,8 @@ class Agent(agent.Agent):
         self[24] = atom.Atom(domain=domain.BoundedInt(0,48),init=1,names="pitch bend range upper",policy=atom.default_policy(self.set_pitchbend_up))
         self[25] = atom.Atom(domain=domain.BoundedInt(0,48),init=1,names="pitch bend range lower",policy=atom.default_policy(self.set_pitchbend_down))
 
+        self[26] = atom.Atom(domain=domain.String(),init='{ }',names="channel map",policy=atom.default_policy(self.set_channel_map))
+
         # status output to drive the talker lights
         self[13] = bundles.Output(1,False,names='status output')
         self.light_output = bundles.Splitter(self.__domain,self[13])
@@ -509,6 +511,14 @@ class Agent(agent.Agent):
         self.host.set_velocity_scale(scale)
         return True
 
+    def set_channel_map(self,c):
+        print "set channel map ", c
+        self[26].set_value(c)
+        myd = eval(c);
+        for (c,mc) in myd.items():
+            self.host.map_channel_to_midi_channel(c,mc)
+        return True
+
     def __map_channel_to_midi_channel(self,a,prop,channel,midi_channel):
         print "map midi channel a ", a, " prop ", prop ," c ", channel," m ", midi_channel
         from_str = action.abstract_string(channel)
@@ -521,6 +531,10 @@ class Agent(agent.Agent):
         if to_val < 1 or to_val > 16:
             return errors.invalid_thing(to_str, 'map')
 
+        c = self[26].get_value()
+        myd = eval(c)
+        myd[from_val]=to_val
+        self[26].set_value(myd)
         self.host.map_channel_to_midi_channel(from_val,to_val)
         return True
 
