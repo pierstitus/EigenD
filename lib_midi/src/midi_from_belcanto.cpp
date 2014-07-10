@@ -1501,9 +1501,6 @@ namespace midi
 		if(r->channel_map_.size() < chan) r->channel_map_.resize(chan+RESIZE_AMOUNT);
 		r->channel_map_[chan]=midi_chan;
 
-		delete p;
-
-        pic::logmsg() << "__map_channel_to_midi_channel " << chan << " to " << midi_chan;
 
         return 0;
 	}
@@ -1542,7 +1539,12 @@ namespace midi
     void midi_from_belcanto_t::set_velocity_samples(unsigned n) { impl_->velocity_config_.set_samples(n); }
     void midi_from_belcanto_t::set_velocity_curve(float n) { impl_->velocity_config_.set_curve(n); }
     void midi_from_belcanto_t::set_velocity_scale(float n) { impl_->velocity_config_.set_scale(n); }
-    void midi_from_belcanto_t::map_channel_to_midi_channel(unsigned channel,unsigned midi_channel){ piw::tsd_fastcall(__map_channel_to_midi_channel,impl_,new std::pair<unsigned,unsigned>(channel,midi_channel)); }
+    void midi_from_belcanto_t::map_channel_to_midi_channel(unsigned channel,unsigned midi_channel) 
+	{ 
+		std::pair<unsigned,unsigned> p(channel,midi_channel); 
+		piw::tsd_fastcall(__map_channel_to_midi_channel,impl_, &p); 
+        pic::logmsg() << "midi_from_belcanto_t::map_channel_to_midi_channel " << channel << " to " << midi_channel;
+	}
     piw::clocksink_t *midi_from_belcanto_t::clocksink() { return impl_; }
 
 } // namespace midi
